@@ -205,6 +205,9 @@ class LLMEngine:
         # can finish in any order (shorter prompts complete before longer ones).
         outputs = {}
         prefill_throughput = decode_throughput = 0.
+        num_steps = 0
+        num_prefill_steps = 0
+        num_decode_steps = 0
 
         # ── Main inference loop ─────────────────────────────────────────
         # Each iteration runs one scheduler step.  The scheduler alternates
@@ -213,6 +216,11 @@ class LLMEngine:
         while not self.is_finished():
             t = perf_counter()
             output, num_tokens = self.step()
+            num_steps += 1
+            if num_tokens > 0:
+                num_prefill_steps += 1
+            else:
+                num_decode_steps += 1
 
             # Update the live throughput display.  The sign of num_tokens
             # tells us which phase the step belonged to (see step() docs).
@@ -236,6 +244,9 @@ class LLMEngine:
         # Re-order results to match the original prompt ordering.  Sequence
         # IDs are assigned by a monotonic counter, so sorting by seq_id
         # restores the original input order.
+        print(f"\n[engine] loop finished: {num_steps} total steps "
+              f"({num_prefill_steps} prefill, {num_decode_steps} decode)")
+
         outputs = [outputs[seq_id] for seq_id in sorted(outputs.keys())]
         outputs = [{"text": self.tokenizer.decode(token_ids), "token_ids": token_ids} for token_ids in outputs]
         if use_tqdm:
